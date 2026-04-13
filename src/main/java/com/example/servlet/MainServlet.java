@@ -1,10 +1,13 @@
 package com.example.servlet;
 
+import com.example.model.User;
+
 import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpSession;
 import java.io.File;
 import java.io.IOException;
 import java.net.URLDecoder;
@@ -17,17 +20,32 @@ import java.util.Date;
 
 @WebServlet("/servlet")
 public class MainServlet extends HttpServlet {
-
+    private static final String BASE_DIR = System.getProperty("user.home") + File.separator + "filemanager" + File.separator;
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException{
+        HttpSession session = req.getSession(false);
+        if (session == null || session.getAttribute("user") == null) {
+            resp.sendRedirect(req.getContextPath() + "/login");
+            return;
+        }
+        User user = (User) session.getAttribute("user");
+        String userHome = BASE_DIR + user.getLogin();
+        File userHomeDir = new File(userHome);
+        if (!userHomeDir.exists()) {
+            userHomeDir.mkdirs();
+        }
         String path;
         String pathParam = req.getParameter("path");
         if(pathParam != null && !pathParam.isEmpty())
             path = URLDecoder.decode(pathParam, StandardCharsets.UTF_8);
         else
-            path = System.getProperty("user.home");
+            path = userHome;
         File thisObject = new File(path);
+        if (!thisObject.getCanonicalPath().startsWith(new File(userHome).getCanonicalPath())) {
+            resp.sendError(HttpServletResponse.SC_FORBIDDEN, "Доступ запрещён");
+            return;
+        }
         if(!thisObject.exists()){
             resp.sendError(HttpServletResponse.SC_NOT_FOUND, "Путь не найден: " + path);
             return;

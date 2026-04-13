@@ -7,6 +7,9 @@
     <title>Проводник</title>
 </head>
     <body>
+        <form action="${pageContext.request.contextPath}/logout" method="get">
+            <button type="submit">Выход</button>
+        </form>
         <b> ${generatedTime}</b>
         <h2>${currentPath}</h2>
         <%
