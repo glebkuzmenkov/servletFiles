@@ -1,69 +1,75 @@
 package com.example.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.example.dao.UserDAO;
 import com.example.model.User;
 import org.mindrot.jbcrypt.BCrypt;
 
-import java.io.File;
-import java.io.IOException;
-import java.util.concurrent.ConcurrentHashMap;
+
+import java.sql.Connection;
+import java.sql.Driver;
+import java.sql.DriverManager;
+import java.sql.SQLException;
 
 public class UserService {
-    private static final String USERS_FILE = System.getProperty("catalina.base") + "/users.json";
+    private final Connection connection;
     private static UserService instance;
-    private final ConcurrentHashMap<String, User> users = new ConcurrentHashMap<>();
-    private final ObjectMapper objectMapper = new ObjectMapper();
-    private UserService() {
-        loadUsers();
+    public UserService() {
+        this.connection = getMysqlConnection();
     }
-    public static synchronized UserService getInstance() {
+    @SuppressWarnings("UnusedDeclaration")
+    public static Connection getMysqlConnection() {
+        try {
+            Class.forName("org.sqlite.JDBC");
+            DriverManager.registerDriver((Driver) Class.forName("com.mysql.jdbc.Driver").newInstance());
+            Connection connection = DriverManager.getConnection("jdbc:sqlite:D:\\Demo\\servlet\\usersdb.db");
+            return connection;
+        } catch (SQLException | InstantiationException | IllegalAccessException | ClassNotFoundException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+    public static synchronized UserService getInstance() throws SQLException {
         if (instance == null) {
             instance = new UserService();
         }
         return instance;
     }
-    private void loadUsers() {
-        File file = new File(USERS_FILE);
-        if (file.exists()) {
-            try {
-                User[] userArray = objectMapper.readValue(file, User[].class);
-                for (User user : userArray) {
-                    users.put(user.getLogin(), user);
-                }
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
-    }
-    private void saveUsers() {
+    public synchronized boolean register(String login, String password, String email) throws DBException {
+        UserDAO dao = new UserDAO(connection);
         try {
-            objectMapper.writeValue(new File(USERS_FILE), users.values());
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-    public void reloadUsers() {
-        users.clear();
-        loadUsers();
-    }
-    public synchronized boolean register(String login, String password, String email) {
-        reloadUsers();
-        if (users.containsKey(login)) {
+            connection.setAutoCommit(false);
+            try{
+                User user = dao.getUser(login);
+            } catch (SQLException e){
+                String hashed = BCrypt.hashpw(password, BCrypt.gensalt());
+                try {
+                    dao.addUser(new User(login, hashed, email));
+                }catch (SQLException sql){
+                    return false;
+                }
+                connection.commit();
+                return true;
+            }
             return false;
+        }catch (SQLException e){
+            try{
+                connection.rollback();
+            } catch (SQLException ignore) {}
+            throw new DBException(e);
+        }finally {
+            try {
+                connection.setAutoCommit(true);
+            } catch (SQLException ignore) {}
         }
-        String hashed = BCrypt.hashpw(password, BCrypt.gensalt());
-        User user = new User(login, hashed, email);
-        users.put(login, user);
-        saveUsers();
-        return true;
     }
-    public synchronized User authenticate(String login, String password) {
-        reloadUsers();
-        User user = users.get(login);
-        if (user == null) {
+    public synchronized User authenticate(String login, String password) throws DBException {
+        UserDAO dao = new UserDAO(connection);
+        try{
+            User user = dao.getUser(login);
+            boolean match = BCrypt.checkpw(password, user.getPassHash());
+            return match ? user : null;
+        }catch (SQLException e){
             return null;
         }
-        boolean match = BCrypt.checkpw(password, user.getPassHash());
-        return match ? user : null;
     }
 }

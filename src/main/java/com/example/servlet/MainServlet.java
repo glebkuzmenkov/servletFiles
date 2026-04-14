@@ -18,7 +18,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Date;
 
-@WebServlet("/servlet")
+@WebServlet("/")
 public class MainServlet extends HttpServlet {
     private static final String BASE_DIR = System.getProperty("user.home") + File.separator + "filemanager" + File.separator;
     @Override

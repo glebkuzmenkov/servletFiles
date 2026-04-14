@@ -1,12 +1,11 @@
 package com.example.model;
 
 import java.io.Serializable;
-
+@SuppressWarnings("UnusedDeclaration")
 public class User implements Serializable {
     private String login;
     private String passHash;
     private String email;
-
     public User(){}
     public User(String login, String passHash, String email){
         this.login = login;
